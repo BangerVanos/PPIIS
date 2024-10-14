@@ -9,6 +9,7 @@ from streamlit_extras.stateful_button import button
 
 class AppStates(StrEnum):
     PRE_AUTH = 'pre_auth'
+    SIGNUP = 'signup'
     AUTH = 'auth'
     AUTHENTICATED = 'authenticated'
 
@@ -72,7 +73,9 @@ class App:
         elif st.session_state['state'] == AppStates.AUTH:            
             self._render_authentication_layout(st.session_state['user_type'])            
         elif st.session_state['state'] == AppStates.AUTHENTICATED:            
-            self._render_authenticated_layout(st.session_state['authenticated_person'])            
+            self._render_authenticated_layout(st.session_state['authenticated_person'])
+        elif st.session_state['state'] == AppStates.SIGNUP:
+            self._render_signup_layout()            
     
     def _render_non_authenticated_layout(self) -> None:
         self._app_state(AppStates.PRE_AUTH)
@@ -88,10 +91,18 @@ class App:
             admin = st.button('Войти как администратор', key='admin_btn', use_container_width=True,
                               on_click=self._authentication_process_run,
                               args=('admin',))
+            st.write('Вас не существует в системе?')
+            signup = st.button('Занести в систему нового пользователя', key='signup_btn',
+            use_container_width=True,
+            on_click=self._signup_process_run)
 
     def _authentication_process_run(self, user_type: Literal['admin', 'user', 'guest']) -> None:
         self._app_state(AppStates.AUTH)               
         self._user_type = user_type
+    
+    def _signup_process_run(self) -> None:
+        self._app_state(AppStates.SIGNUP)               
+        self._user_type = 'user'
     
     def _submit_authentication(self, user_type: Literal['admin', 'user', 'guest']) -> None:
         self._app_state(AppStates.AUTHENTICATED)               
@@ -102,6 +113,25 @@ class App:
         self._app_state(AppStates.PRE_AUTH)
         self._user_type = None
         self._authenticated_person(None)
+    
+    def _render_signup_layout(self) -> None:
+        self._container.empty()
+        with self._container.container():
+            st.header('Добавление нового пользователя')
+            with st.form('signup_form'):
+                login = st.text_input(label='Введите идентификатор нового пользователя',
+                key='new_login_field')
+                password = st.text_input(label='Введите пароль', key='new_password_field',
+                type='password')
+                repeat_password = st.text_input(label='Повторите пароль', key='new_password_repeat',
+                type='password')
+                signup_col, back_col = st.columns([2, 1])
+                with signup_col:
+                    st.form_submit_button('Добавить нового пользователя', use_container_width=True)
+                with back_col:
+                    st.form_submit_button('Назад', on_click=self._reset_app,
+                    use_container_width=True)
+                # st.error('Пароли не совпадают!')
 
     def _render_authentication_layout(self, user_type: Literal['admin', 'user', 'guest']) -> None:        
         self._container.empty()                                
@@ -137,29 +167,54 @@ class App:
         self._container.empty()       
         with self._container.container():
             st.header('Выберите возможную функцию')
-            amount_btn = st.button('Узнать количество учащихся', key='amount_btn')
-            if amount_btn:
-                self._get_students_amount()
-            if st.session_state['authenticated_person'] == 'user':
-                student_list_btn = st.button('Получить список всех студентов', key='student_list_btn')
-                if student_list_btn:
-                    self._get_students()
-            elif st.session_state['authenticated_person'] == 'admin':
-                student_list_btn = st.button('Получить список всех студентов', key='student_list_btn')
-                if student_list_btn:
-                    self._get_students()
-                add_student_btn = st.button('Добавить нового студента', key='add_student_btn')
-                if add_student_btn:
-                    st.header('Добавить нового студента')
-                    with st.form('add_student'):
-                        first_name = st.text_input('Имя', key='first_name_field')
-                        last_name = st.text_input('Фамилия', key='last_name_field')
-                        group = st.text_input('Группа', key='group_field')
-                        add_student_btn = st.form_submit_button('Добавить нового студента')
-                        if add_student_btn:
-                            self._create_student(first_name, last_name, group)
-                delete_db_btn = st.button('Удалить базу данных', key='delete_db_btn',
-                                          on_click=self._delete_database)
+            tab1, tab2 = st.tabs(["Конфиденциальные данные", "Неконфиденциальные данные"])
+
+            # Функционал для конфиденциальных данных
+            with tab1:
+                st.subheader("Конфиденциальные данные")
+
+                action = st.selectbox("Выберите действие", ["Создать", "Редактировать", "Удалить", "Поиск"])
+
+                if action == "Создать":
+                    st.text_input("Введите данные для создания")
+                    st.text_area("Значение этих данных")
+                    st.button("Создать")
+                    
+                elif action == "Редактировать":
+                    st.text_input("Введите идентификатор данных для редактирования")
+                    st.text_area("Отредактируйте данные")
+                    st.button("Сохранить изменения")
+
+                elif action == "Удалить":
+                    st.text_input("Введите идентификатор данных для удаления")
+                    st.button("Удалить")                    
+
+                elif action == "Поиск":
+                    st.text_input("Введите ключевое слово для поиска")
+                    st.button("Найти")                    
+
+            # Функционал для неконфиденциальных данных
+            with tab2:
+                st.subheader("Неконфиденциальные данные")
+
+                action = st.selectbox("Выберите действие", ["Создать", "Редактировать", "Удалить", "Поиск"], key="non_conf")
+
+                if action == "Создать":
+                    st.text_input("Введите данные для создания", key="create_non_conf")
+                    st.button("Создать", key="create_btn_non_conf")
+                    
+                elif action == "Редактировать":
+                    st.text_input("Введите идентификатор данных для редактирования", key="edit_non_conf")
+                    st.text_area("Отредактируйте данные", key="edit_area_non_conf")
+                    st.button("Сохранить изменения", key="save_btn_non_conf")
+
+                elif action == "Удалить":
+                    st.text_input("Введите идентификатор данных для удаления", key="delete_non_conf")
+                    st.button("Удалить", key="delete_btn_non_conf")
+
+                elif action == "Поиск":
+                    st.text_input("Введите ключевое слово для поиска", key="search_non_conf")
+                    st.button("Найти", key="search_btn_non_conf")            
             log_out_btn = st.button('Выйти из аккаунта', key='log_out_btn', on_click=self._reset_app)
 
     def _authenticate(self, user_type: Literal['admin', 'user', 'guest'],
