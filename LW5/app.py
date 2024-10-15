@@ -32,6 +32,12 @@ if not 'step' in st.session_state:
     st.session_state['step'] = 'Запуск системы'
 step = st.session_state['step']
 
+if not 'last_snapshot' in st.session_state:
+    tracemalloc.start()
+    snapshot = tracemalloc.take_snapshot()
+    st.session_state['last_snapshot'] = snapshot
+    tracemalloc.stop()
+
 
 def upload_data(_id: str, data: str, confidential: bool = False) -> None:
     if not get_data(_id) is None:
@@ -64,9 +70,15 @@ def dump_memory(step: str):
     tracemalloc.start()
     snapshot = tracemalloc.take_snapshot()
     st.write(f"Дамп памяти ({step}):")
-    top_stats = snapshot.statistics('lineno')    
+    top_diffs = snapshot.compare_to(st.session_state['last_snapshot'], 'lineno')
+    top_stats = snapshot.statistics('lineno')
+    st.session_state['last_snapshot'] = snapshot    
     tracemalloc.stop()
-    return map(str, top_stats[:10])
+    result = [f"{'=' * 5} TOP STATS {'=' * 5}"]
+    result.extend(list(map(str, top_stats[:10])))
+    result.append(f"{'=' * 5} TOP DIFFS {'=' * 5}")
+    result.extend(list(map(str, top_diffs[:10])))
+    return result
 
 def system_usage():
     process = psutil.Process()
@@ -87,7 +99,7 @@ def choise_format_func(option: str) -> str:
     }[option]
 
 def main_view() -> None:
-    data_col, memory_col = st.columns([3, 2])    
+    data_col, memory_col = st.columns([2, 3])    
     with data_col:
         choise = st.selectbox(label='Выберите действие', key='choise',
                               format_func=choise_format_func,
@@ -102,13 +114,12 @@ def main_view() -> None:
             case 'delete':
                 render_delete()
     with memory_col:
-        with st.empty().container(height=400):
-            st.write('\n'.join(dump_memory(step)))
+        with st.empty().container(height=700):
+            st.write('\n\n'.join(dump_memory(step)))
             st.divider()
             st.write(system_usage())
 
-def render_upload() -> None:
-    print('rmrkb')
+def render_upload() -> None:    
     with st.form('upload_form'):
         st.header('Загрузить данные')
         _id = st.text_input('Адрес в памяти', key='key_input')
